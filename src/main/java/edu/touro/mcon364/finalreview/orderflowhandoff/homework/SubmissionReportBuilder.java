@@ -6,6 +6,7 @@ import edu.touro.mcon364.finalreview.model.SubmissionReport;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Homework 3 — Building a report from a completed collection.
@@ -59,7 +60,10 @@ public class SubmissionReportBuilder {
      */
     public long getLateCount() {
         // TODO: answer this reporting question from the submissions collection
-        return 0;
+        return submissions.stream()
+                .filter(StudentSubmission::late)
+                .count();
+
     }
 
     /**
@@ -69,7 +73,10 @@ public class SubmissionReportBuilder {
      */
     public double getAverageScore() {
         // TODO: answer this reporting question from the submissions collection
-        return 0.0;
+        return submissions.stream()
+                .mapToInt(StudentSubmission::score)
+                .average()
+                .orElse(0.0);
     }
 
     /**
@@ -78,7 +85,11 @@ public class SubmissionReportBuilder {
      */
     public Map<String, Long> getSubmissionsByAssignment() {
         // TODO: answer this reporting question from the submissions collection
-        return Map.of();
+        return Map.copyOf(submissions.stream()
+                .collect(Collectors.groupingBy(
+                        t -> t.assignmentName(),
+                        Collectors.counting()
+                )));
     }
 
     /**
@@ -86,7 +97,10 @@ public class SubmissionReportBuilder {
      */
     public List<StudentSubmission> getFailingSubmissions() {
         // TODO: answer this reporting question from the submissions collection
-        return List.of();
+        return submissions.stream()
+                .filter(s -> s.score() < 60)
+                .collect(Collectors.toUnmodifiableList());
+
     }
 
     /**
