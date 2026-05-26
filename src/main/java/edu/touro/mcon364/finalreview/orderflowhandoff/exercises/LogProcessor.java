@@ -6,10 +6,7 @@ import edu.touro.mcon364.finalreview.model.LogMessage;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -72,7 +69,7 @@ public class LogProcessor {
     private final BlockingQueue<LogMessage> queue = new LinkedBlockingQueue<>();
 
     // worker threads
-    private final List<Thread> workers = new ArrayList<>();
+    private ExecutorService executor;
 
     // is the processor still running?
     private volatile boolean running = false;
@@ -82,16 +79,15 @@ public class LogProcessor {
 
     // count by log level
     private final ConcurrentHashMap<LogLevel, Integer> countsByLevel = new ConcurrentHashMap<>();
+    // can use AtomicInteger instead of Integer but more of a hassle
 
     /**
      * Accept one message for processing.
      */
     public void submit(LogMessage message) {
         // TODO: implement
-        try {
-            queue.put(message);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (running) {
+            queue.offer(message);
         }
     }
 
@@ -101,13 +97,12 @@ public class LogProcessor {
     public void start(int workerCount) {
         // TODO: implement
         if (workerCount <= 0) {
-            throw new  IllegalArgumentException("workerCount must be greater than 0");
+            throw new IllegalArgumentException("workerCount must be greater than 0");
         }
         running = true;
+        executor = Executors.newFixedThreadPool(workerCount);
         for (int i = 0; i < workerCount; i++) {
-            Thread worker = new Thread(this::workerLoop);
-            workers.add(worker);
-            worker.start();
+            executor.submit(this::workerLoop);
         }
     }
 
@@ -119,18 +114,15 @@ public class LogProcessor {
      */
     private void workerLoop() {
         // TODO: implement
-        while (running || !queue.isEmpty()) {
-            try {
-                LogMessage message = queue.poll(100, TimeUnit.MILLISECONDS);
-                if (message != null) {
-                    process(message);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
+        try {
+            while (running || !queue.isEmpty()) {
+                process(queue.take());
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
+
 
     /**
      * Process one message and update whatever statistics this class tracks.
@@ -139,6 +131,7 @@ public class LogProcessor {
         // TODO: implement
         totalProcessed.incrementAndGet();
         countsByLevel.merge(message.level(), 1, Integer::sum);
+        // merge takes key, value, and method - add value to key using the method
     }
 
     /**
@@ -147,9 +140,16 @@ public class LogProcessor {
     public void stop() throws InterruptedException {
         // TODO: implement
         running = false;
-        for (Thread worker : workers) {
-            worker.join();
+        if (executor == null) return;
+        executor.shutdownNow(); // interrupt workers blocked on take()
+        // blocks main thread until all workers have finished, or the timeout occurs, or the thread is interrupted
+        executor.awaitTermination(1, TimeUnit.SECONDS);
+        // drain any messages that were in the queue but not yet picked up
+        LogMessage msg;
+        while ((msg = queue.poll()) != null) {
+            process(msg);
         }
+
     }
 
     /**
