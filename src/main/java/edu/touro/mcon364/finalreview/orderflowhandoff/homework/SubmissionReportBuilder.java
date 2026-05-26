@@ -48,6 +48,9 @@ public class SubmissionReportBuilder {
     private final List<StudentSubmission> submissions;
 
     public SubmissionReportBuilder(List<StudentSubmission> submissions) {
+        // notice this idiom for validating non-null and making a defensive copy in one line
+        // WILL be on test, write this idiom in the constructor in any problem of this type
+        // can be with any collection. if requirements say to only handle nonNull
         this.submissions = List.copyOf(Objects.requireNonNull(submissions));
     }
 
